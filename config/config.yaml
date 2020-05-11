@@ -1,0 +1,16 @@
+# This file is the only file that should be changed when using this pacakage. 
+# Change parameters to your prefrence
+
+# TOPICS -------------------------------------------------------------------------------------------------------------------------------------------
+sonar_slam_sub_topic: "manta/sonar/processed" # Subscribe to topic with sonar_data_raw.msg format
+#---------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Variables for line extractor ---------------------------------------------------------------------------------------------------------------------
+minRange: 0 # Minimum range of sonar
+maxRange: 6 # Maximum range the sonar is set to
+maxAngle: 1.57 # In radians
+minAngle: -1.57 # Still radians
+rangeResolution: 0.1 # Resolution of "map"
+angleResolution: 0.0175 # Resolution of "map"
+visualization: true # Visualization flag
+#-------------------------------------------------------------------------------------------------------------------------------------------------  

@@ -1,0 +1,8 @@
+<?xml version="1.0" ?>
+<launch>
+    <!--Loads the necesarry parameters to rosparam-->
+    <rosparam file="$(find sonar_slam)/config/config.yaml"/>
+    <!--Launch mapping node-->
+    <node pkg="sonar_slam" type="sonar_slam_node" name="sonar_slam_node" output="screen"/>
+
+</launch>
