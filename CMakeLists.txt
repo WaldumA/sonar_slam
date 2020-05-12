@@ -66,7 +66,7 @@ include_directories(SYSTEM ${Boost_INCLUDE_DIR} ${EIGEN_INCLUDE_DIRS})
 
 
 add_library(search_lib src/search_algorithms.cpp)
-add_library(feature_extractor_lib src/line_extractor.cpp src/search_algorithms.cpp)
+add_library(feature_extractor_lib src/line_extractor.cpp src/search_algorithms.cpp src/uncertainty_calculating.cpp)
 
 add_executable(sonar_slam_node src/sonar_slam.cpp)
 

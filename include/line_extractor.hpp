@@ -87,5 +87,7 @@ class lineExtractor{
     void initializeVotingSpace();
     void visualiseLine(bestLine line, vector<float> ranges, vector<float> angles);
     void visualise4Line(vector<bestLine> line, vector<float> ranges, vector<float> angles);
+    float returnAngleResolution();
+    float returnRangeResolution();
 
 };

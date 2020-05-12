@@ -4,7 +4,6 @@
 #include <vector>
 #include <Eigen/Dense>
 #include <sonar_msgs/sonar_processed_data.h>
-#include "line_extractor.hpp"
 #include "uncertainty_calculating.hpp"
 
 // Quality of life

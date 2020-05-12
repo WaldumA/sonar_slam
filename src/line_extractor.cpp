@@ -1,5 +1,16 @@
 #include "line_extractor.hpp"
 
+
+float lineExtractor::returnAngleResolution() {
+    return angleResolution;
+ }
+
+float lineExtractor::returnRangeResolution() {
+    return rangeResolution;
+}
+
+
+
 MatrixXi lineExtractor::votingProcess(votingBins bins) {
     // Declaring variables
     float alpha, beta, delta_alpha, delta_beta, range, tmp_range, tmp_angle;
@@ -184,6 +195,7 @@ void lineExtractor::visualiseLine(bestLine line, vector<float> ranges, vector<fl
     Mat gray_display,tmp_image;
     
     // Draw Scan
+    
     for (int i = 0; i < ranges.size(); i++) {
         tmp_width = ranges[i]*sin(angles[i]);
         tmp_height = sqrt(pow(ranges[i],2.0) - pow(tmp_width,2.0));
@@ -233,6 +245,7 @@ void lineExtractor::visualise4Line(vector<bestLine> line, vector<float> ranges, 
     Mat gray_display,tmp_image;
     
     // Draw Scan
+    
     for (int i = 0; i < ranges.size(); i++) {
         tmp_width = ranges[i]*sin(angles[i]);
         tmp_height = sqrt(pow(ranges[i],2.0) - pow(tmp_width,2.0));
@@ -243,8 +256,8 @@ void lineExtractor::visualise4Line(vector<bestLine> line, vector<float> ranges, 
     
     // Drawing the line 
     for (int j = 0; j < line.size(); j++) {
-        origo_width = line[j].rho*sin(line[j].theta);
-        origo_height = sqrt(pow(line[j].rho,2.0) - pow(origo_width,2.0));
+        origo_width = (line[j].rho+0.1)*sin(line[j].theta);
+        origo_height = sqrt(pow((line[j].rho+0.1),2.0) - pow(origo_width,2.0));
         origo_width = (500/2) - (origo_width*scale);
         origo_height = (500-5) - (origo_height*scale);
         lineAngle = -line[j].theta;
