@@ -16,9 +16,10 @@ struct normalDistribution {
 // Functions
 vector<normalDistribution> calculateNormalDistributions(vector<bestLine> bestLines, vector<float> thresholdAngles, vector<float> thresholdRanges, float angleResolution, float rangeResolution);
 int overlapRatio(MatrixXi scan, bestLine line);
-
-
-
+bool isSame(vector<bestLine> accaptedLine,vector<bestLine> candidate_lines, bestLine line);
+void debug(MatrixXi scan, vector<bestLine> lines);
+bool closeEnough(bestLine tmp_line, float best_rho, float best_theta, float rangeResolution, float angleResolution);
+normalDistribution findDistribution(vector<bestLine> accepted_lines);
 
 
 

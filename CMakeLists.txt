@@ -66,9 +66,10 @@ include_directories(SYSTEM ${Boost_INCLUDE_DIR} ${EIGEN_INCLUDE_DIRS})
 
 
 add_library(search_lib src/search_algorithms.cpp)
-add_library(feature_extractor_lib src/line_extractor.cpp src/search_algorithms.cpp src/uncertainty_calculating.cpp)
+add_library(feature_extractor_lib src/line_extractor.cpp src/search_algorithms.cpp src/uncertainty_calculating.cpp src/ekf_slam.cpp)
 
 add_executable(sonar_slam_node src/sonar_slam.cpp)
+
 
 target_link_libraries(sonar_slam_node PRIVATE ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES} ${OpenCV_LIBRARIES} search_lib feature_extractor_lib)
 

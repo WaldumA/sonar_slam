@@ -3,6 +3,61 @@
 
 // Functions
 
+// Chek that lines beeing checked is close enough to the original
+bool closeEnough(bestLine line, float best_rho, float best_theta, float rangeResolution, float angleResolution) {
+    if ((line.rho + 5*rangeResolution) >= best_rho && (line.rho - 5*rangeResolution) <= best_rho) {
+        if ((line.theta + 5*angleResolution) >= best_theta && (line.theta - 5*angleResolution) <= best_theta) {
+            return true;
+        }
+    }
+    return false;
+}
+
+
+// Visualise for debugging
+void debug(MatrixXi scan, vector<bestLine> lines) {
+    // Variables
+    
+    int scale = 50;
+    float origo_height, origo_width, lineAngle;
+    int y;
+    float n;
+
+    
+    Mat gray_display,tmp_image;
+    
+    
+    // Drawing the line 
+    for (int i = 0; i < lines.size(); i++) {
+    origo_width = (lines[i].rho+0.1)*sin(lines[i].theta);
+    origo_height = sqrt(pow((lines[i].rho+0.1),2.0) - pow(origo_width,2.0));
+    origo_width = (500/2) - (origo_width*scale);
+    origo_height = (500-5) - (origo_height*scale);
+    lineAngle = -lines[i].theta;
+    n = origo_height - (tan(lineAngle) * origo_width);
+    
+    
+     for (int x = 0; x < 500; x++) {
+            y = int(x * tan(lineAngle) + n);
+            if (y >= 0 && y < 500) {
+                scan(y,x) = 255;
+            }
+        }
+    }
+    //tmp_scan(origo_height,origo_width) = 100;
+    
+
+    // Convert to openCV and display
+    
+    eigen2cv(scan,tmp_image);
+    tmp_image.convertTo(gray_display, CV_8U);
+    namedWindow("Line display", 0);
+    resizeWindow("Line display", 1200, 1200);
+    imshow("Line display", gray_display);
+    waitKey();
+    
+}
+
 
 // Finds distrubtion based on lines with sufficient overlap 
 normalDistribution findDistribution(vector<bestLine> accepted_lines) {
@@ -28,8 +83,25 @@ normalDistribution findDistribution(vector<bestLine> accepted_lines) {
     return distribution;
 }
 
-
-
+// Compare bestLines
+bool isSame(vector<bestLine> accaptedLine,vector<bestLine> candidate_lines, bestLine line) {
+    bool accepted = true;
+    for (int i = 0; i < accaptedLine.size(); i++) {
+        if (accaptedLine[i].rho == line.rho &&  accaptedLine[i].theta == line.theta) {
+            accepted = false;
+            break;
+        }
+    }
+    if (accepted){
+    for (int i = 0; i < candidate_lines.size(); i++) {
+        if (candidate_lines[i].rho == line.rho &&  candidate_lines[i].theta == line.theta) {
+            accepted = false;
+            break;
+        }
+    }
+    }
+    return accepted;
+}
 
 // Calculating overlap_ratio
 int overlapRatio(MatrixXi scan, bestLine line) {
@@ -76,7 +148,7 @@ vector<normalDistribution> calculateNormalDistributions(vector<bestLine> bestLin
     MatrixXi scan;
     int scale = 50;
     int overlap_score;
-    int threshold = 40;
+    int threshold = 150;
     scan = MatrixXi(500,500);
     scan.setConstant(0);
     
@@ -99,26 +171,41 @@ vector<normalDistribution> calculateNormalDistributions(vector<bestLine> bestLin
     vector<normalDistribution> finalDistributions;
     vector<bestLine> candidate_lines, accepted_lines;
     bestLine winning_candidate, tmp_line;
+    float best_rho, best_theta;
     for (int i = 0; i < bestLines.size(); i++) {
+        accepted_lines.clear();
+        candidate_lines.clear();
         overlap_score = 0;
         winning_candidate = bestLines[i];
         candidate_lines.push_back(winning_candidate);
         overlap_score = overlapRatio(scan, winning_candidate);
-        
+        best_rho = winning_candidate.rho;
+        best_theta = winning_candidate.theta;
         while (candidate_lines.size() > 0) {
             // If line has enough overlap with sonar scan, check for lines in the neigbhour hood
             if (overlap_score > threshold) {
+                
+                //cout << "Accepted lines: " << accepted_lines.size() << endl;
+                //cout << "Candidate lines: " << candidate_lines.size() << endl;
                 accepted_lines.push_back(candidate_lines[0]); 
                 tmp_line.theta = candidate_lines[0].theta;
                 tmp_line.rho = candidate_lines[0].rho + rangeResolution;
-                candidate_lines.push_back(tmp_line);
+                if  (isSame(accepted_lines, candidate_lines, tmp_line) && closeEnough(tmp_line, best_rho, best_theta,rangeResolution, angleResolution)) {
+                    candidate_lines.push_back(tmp_line);
+                }
                 tmp_line.rho = candidate_lines[0].rho - rangeResolution;
+                if (isSame(accepted_lines, candidate_lines, tmp_line) && closeEnough(tmp_line, best_rho, best_theta,rangeResolution, angleResolution)) {
                 candidate_lines.push_back(tmp_line);
+                }
                 tmp_line.rho = candidate_lines[0].rho;
                 tmp_line.theta = candidate_lines[0].theta + angleResolution;
+                if (isSame(accepted_lines, candidate_lines, tmp_line) && closeEnough(tmp_line, best_rho, best_theta,rangeResolution, angleResolution)) {
                 candidate_lines.push_back(tmp_line);
+                }
                 tmp_line.theta = candidate_lines[0].theta - angleResolution;
+                if (isSame(accepted_lines, candidate_lines, tmp_line) && closeEnough(tmp_line, best_rho, best_theta,rangeResolution, angleResolution)) {
                 candidate_lines.push_back(tmp_line);
+                }
             }
             // Erase check line from candidates
             candidate_lines.erase(candidate_lines.begin());
@@ -130,6 +217,9 @@ vector<normalDistribution> calculateNormalDistributions(vector<bestLine> bestLin
         }
         tmp_distribution = findDistribution(accepted_lines);
         finalDistributions.push_back(tmp_distribution);
+        debug(scan, accepted_lines);
+        //cout << "Am I in an infinite loop? Lines found: " << accepted_lines.size() << endl;
+        
 
     }
   

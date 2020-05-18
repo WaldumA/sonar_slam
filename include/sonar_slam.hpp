@@ -5,10 +5,17 @@
 #include <Eigen/Dense>
 #include <sonar_msgs/sonar_processed_data.h>
 #include "uncertainty_calculating.hpp"
+#include <nav_msgs/Odometry.h>
+#include "ekf_slam.hpp"
 
 // Quality of life
 using namespace Eigen;
 using namespace std;
+
+
+
+
+
 
 class sonarSlam {
 private:
@@ -16,21 +23,27 @@ private:
 	ros::NodeHandle nh;
 
 	// ROS parameters
-	ros::Subscriber sonar_processed_data;
+	ros::Subscriber sonar_sub;
+	ros::Subscriber dvl_sub;
 
 	// ROS params
-	string sub_topic;
+	string sonar_sub_topic;
+	string dvl_sub_topic;
+	string imu_sub_topic;
 
 	// Line extractor
 	lineExtractor lE;
 
+	// EKF_SLAM
+	ekfSLAM eS;
+
+	// Variables
+	float prevT, T;	
+
 public:
 sonarSlam() {
-
-	// Regarding ROS parameter
-	nh.getParam("sonar_slam_sub_topic",sub_topic);
-	// Initiate subscribers
-	sonar_processed_data = nh.subscribe(sub_topic,1000,&sonarSlam::sonarCallback,this);
+	initializeSlam();
+	
 	}
 
 
@@ -38,7 +51,9 @@ sonarSlam() {
 
 
 // Callback functions
+void initializeSlam();
 void sonarCallback(const sonar_msgs::sonar_processed_data::ConstPtr& msg);
+void dvlCallback(const nav_msgs::Odometry::ConstPtr& msg);
 
 };
 
