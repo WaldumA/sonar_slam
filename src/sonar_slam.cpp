@@ -1,9 +1,28 @@
 #include "sonar_slam.hpp"
 
 
+
+void sonarSlam::IMUCallback(const sensor_msgs::Imu::ConstPtr& msg) {
+	float tmp_yaw, time_step;
+	theQuaternion q;
+	tmp_yaw = msg->angular_velocity.z;
+	//dt = (ros::Time::now().nsec - prev_time.nsec);
+	time_step = 1.0/126.0;
+		//prev_time = ros::Time::now();
+		//cout << "dt: " << dt*0.000000001 << endl;
+	
+	yaw += tmp_yaw * time_step;
+	q = ToQuaternion(yaw,0,0);
+	
+	//cout << "Orientation: " << endl;
+	//cout << "x: " << q.x << endl << "y: " << q.y << endl << "z: " << q.z << endl << "w: " << q.w << endl;
+	
+}
+
+
+
 void sonarSlam::sonarCallback(const sonar_msgs::sonar_processed_data::ConstPtr& msg) {
 	// Variables
-	vector<normalDistribution> uncertainty; 
 	vector<float> ranges, angles, thresholdRanges, thresholdAngles;
 	vector<bestLine> bestLines;
 	votingBins bins;
@@ -11,41 +30,72 @@ void sonarSlam::sonarCallback(const sonar_msgs::sonar_processed_data::ConstPtr& 
 	bestLine simplyTheBest;
 
 	// Extracting data from msg	
+	//cout << "Sonar1" << endl;
+	
 	ranges = msg->range;
 	angles = msg->angles;
 	thresholdAngles = msg->thresholdAngles;
 	thresholdRanges = msg->thresholdRange;
 
 	// Running line extraction
+	//cout << "Sonar2" << endl;
 	bins = lE.processSegmentedScan(ranges, angles);
+	thresholded_data = bins;
+
+	//cout << "Sonar3" << endl;
 	votingSpace = lE.votingProcess(bins);
-	//simplyTheBest = lE.findBestLine(votingSpace);
+	//cout << "Sonar4" << endl;
 	bestLines = lE.find4BestLine(votingSpace);
-	lE.visualise4Line(bestLines, thresholdRanges, thresholdAngles);
-	lE.visualiseMatrix(votingSpace);
-	//lE.visualiseLine(simplyTheBest, ranges, angles);
-	
+	//lE.visualise4Line(bestLines, ranges, angles);
+	//cout << "Sonar5" << endl;
 	// Only to be used when a new feature is explored
-	
 	uncertainty = calculateNormalDistributions(bestLines, thresholdAngles, thresholdRanges, lE.returnAngleResolution(), lE.returnRangeResolution());
-	//helloWorld();
+	//cout << "Sonar6" << endl;
+	
 }
 
 void sonarSlam::dvlCallback(const nav_msgs::Odometry::ConstPtr& msg) {
 	
 	// Prediction
+	//cout << "1" << endl;
+	eS.getDVLMeasurements(msg->twist.twist.linear.x,msg->twist.twist.linear.y, msg->header.stamp.nsec * pow(10,-9), yaw);
+	//cout << "2" << endl;
 	eS.Fx();
+	//cout << "3" << endl;
 	eS.odomPrediction();
+	//cout << "4" << endl;
 	eS.covariancePrediction();
-
+	
 	// Update
-	eS.getDVLMeasurements(msg->twist.twist.linear.x,msg->twist.twist.linear.y, msg->header.stamp.nsec * pow(10,-9));
-	eS.DVLH();
-	eS.DVLinnovation();
-	eS.DVLcovariance();
-	eS.KalmanGainDVL();
-	eS.DVLupdate();
-	eS.printStates(false, false, false);
+	//cout << "FOUND: " << endl;
+	//cout << "5" << endl;
+	for (int i = 0; i < uncertainty.size(); i++) {
+	eS.getLines(uncertainty[i].mean_rho, uncertainty[i].mean_theta, uncertainty[i].variance_rho, uncertainty[i].variance_theta);
+	}
+	//cout << "6" << endl;
+	eS.predictLandmarks();
+	//cout << "7" << endl;
+	eS.H();
+	//cout << "8" << endl;
+	eS.sonarS();
+	//cout << "9" << endl;
+	
+	///cout << "Gir dette noen mening?" << endl;
+	//cout << "10" << endl;
+	eS.sonarInnovation();
+	eS.sonarKalmanGain();
+	//cout << "11" << endl;
+	eS.addLandmark();
+	//cout << "12" << endl;
+	eS.sonarUpdate();
+	
+	//eS.visualiseMap(thresholded_data);
+	eS.resetVariables();
+	//cout << "Men hva faen da? :S " << endl;
+	
+
+	//eS.printStates(false, false, false);
+	
 	
 }
 
@@ -53,15 +103,15 @@ void sonarSlam::initializeSlam() {
 
 	
 	// tmpVariables
-	MatrixXf tmp_Q(8,8);
+	MatrixXf tmp_Q(3,3);
 	tmp_Q.setZero();
 	XmlRpc::XmlRpcValue Q;
 
-	MatrixXf tmp_P(8,8);
+	MatrixXf tmp_P(3,3);
 	tmp_P.setZero();
 	XmlRpc::XmlRpcValue P;
 
-	VectorXf tmp_X(8);
+	VectorXf tmp_X(3);
 	tmp_X.setZero();
 	XmlRpc::XmlRpcValue X;
 	
@@ -122,10 +172,12 @@ void sonarSlam::initializeSlam() {
 	
 	// Initiating variables
 	prevT = 0;
+	yaw = 0;
 		
 	// Initiate subscribers
 	sonar_sub = nh.subscribe(sonar_sub_topic,1000,&sonarSlam::sonarCallback,this);
 	dvl_sub = nh.subscribe(dvl_sub_topic,1000,&sonarSlam::dvlCallback,this);
+	imu_sub = nh.subscribe(imu_sub_topic,1000,&sonarSlam::IMUCallback, this);
 
 }
 	
@@ -138,3 +190,21 @@ int main(int argc, char** argv) {
 	ros::spin();
 	return 0;
 }
+
+
+/* TO-DO
+1. Skru på spotify og Song of the people, IKKE musikk på Youtube :)
+2. Fiks compability, cout verdier på stuff og sørg for at noe kommer seg igjennom gating test. Mulig
+landmark prediction også må fikses. Anyway fiks it :) 
+3. Få til og kjøre 6m baggen frem og tilbake med kun og finne noen få landmarks. Tune på verdier etc 
+ettersom hva som trengs.
+4. Få inn landmarksa som blir funnet som update i state estimation.
+
+
+
+
+
+
+
+
+*/

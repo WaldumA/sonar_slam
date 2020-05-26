@@ -3,7 +3,14 @@
 #include <list>
 #include <vector>
 #include <Eigen/Dense>
+#include <Eigen/QR>
+#include <Eigen/SVD>
+#include <list>
+#include "uncertainty_calculating.hpp"
 
+// Quality of life
+using namespace Eigen;
+using namespace std;
 
 // Measurements 
 struct sensorMeasurements{
@@ -32,24 +39,31 @@ struct odomStates {
 
 
 
-// Quality of life
-using namespace Eigen;
-using namespace std;
+struct theQuaternion
+{
+    double w, x, y, z;
+};
+
+theQuaternion ToQuaternion(double yaw, double pitch, double roll);
+
+
+
 
 // EKF_SLAM class
 class ekfSLAM {
     private:
         // ROS handler
-        
-
-        
-        
+        MatrixXf scan;
+        int debug;
+        vector<int> newLandmarks;
+        lines2Check possibleLines, predictedLines, landmarkLines;
+        bool newLandmark;
         float R, doAsso, alpha, sensOffset, T;
         odomStates states, measurements;
         // EKF Matrices
-        MatrixXf matrixP, matrixF, matrixSDVL, matrixHDVL, matrixHsonar, matrixSsonar, matrixW;
-        MatrixXf matrixQ, matrixI;
-        VectorXf estimatedStatesX, predictedStatesX, measurementsZ, innovation;
+        MatrixXf predictedP, estimatedP, matrixF, matrixH, matrixS, matrixW, assosiationS, assosiationH;
+        MatrixXf matrixQ, matrixI, statesEta, statesP, matrixMap, matrixG;
+        VectorXf estimatedStatesX, predictedStatesX, measurementsZ, innovation, predictedLandmarks, matrixR;
      
 
     public:
@@ -60,13 +74,42 @@ class ekfSLAM {
 
     // Functions
     void initialization(VectorXf X0, MatrixXf P0, MatrixXf Q);
-    void getDVLMeasurements(float u, float v, float time);
+    void getDVLMeasurements(float u, float v, float time, float yaw);
 
     // Odom Prediction
     void predict();
     void odomPrediction();
-    void covariancePrediction();
     void Fx();
+    void covariancePrediction();
+    void G();
+    
+
+
+
+    // Sonar update
+    void H();
+    void getLines(float meanRho, float meanTheta, float varRho, float varTheta);
+    void sonarInnovation();
+    void sonarH();
+    void addLandmark();
+    void gatingTest();
+    void sonarS();
+    void sonarKalmanGain();
+    void sonarUpdate();
+    void predictLandmarks();
+    void resetVariables();
+    
+
+
+  
+
+    // Debugging
+    void printStates(bool xEstimate, bool xPrediction, bool pCoovariance);
+    void visualiseMap(votingBins data);
+
+
+
+
 
     // DVL update
     void DVLH();
@@ -74,8 +117,4 @@ class ekfSLAM {
     void DVLinnovation();
     void KalmanGainDVL();
     void DVLcovariance();
-
-    // Debugging
-    void printStates(bool xEstimate, bool xPrediction, bool pCoovariance);
-
 };

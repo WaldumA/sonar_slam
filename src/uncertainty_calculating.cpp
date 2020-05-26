@@ -48,14 +48,14 @@ void debug(MatrixXi scan, vector<bestLine> lines) {
     
 
     // Convert to openCV and display
-    
+    /*
     eigen2cv(scan,tmp_image);
     tmp_image.convertTo(gray_display, CV_8U);
     namedWindow("Line display", 0);
     resizeWindow("Line display", 1200, 1200);
     imshow("Line display", gray_display);
     waitKey();
-    
+    */
 }
 
 
