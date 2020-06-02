@@ -54,14 +54,15 @@ class ekfSLAM {
     private:
         // ROS handler
         MatrixXf scan;
+        JCBB FORDEBUGGING;
         int debug;
         vector<int> newLandmarks;
         lines2Check possibleLines, predictedLines, landmarkLines;
-        bool newLandmark;
+        bool newLandmark, DEBUG;
         float R, doAsso, alpha, sensOffset, T;
         odomStates states, measurements;
         // EKF Matrices
-        MatrixXf predictedP, estimatedP, matrixF, matrixH, matrixS, matrixW, assosiationS, assosiationH;
+        MatrixXf predictedP, estimatedP, matrixF, matrixH, matrixS, matrixW, assosiationS, assosiationH, estimatedPtest;
         MatrixXf matrixQ, matrixI, statesEta, statesP, matrixMap, matrixG;
         VectorXf estimatedStatesX, predictedStatesX, measurementsZ, innovation, predictedLandmarks, matrixR;
      

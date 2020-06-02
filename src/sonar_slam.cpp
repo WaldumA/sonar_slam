@@ -19,8 +19,6 @@ void sonarSlam::IMUCallback(const sensor_msgs::Imu::ConstPtr& msg) {
 	
 }
 
-
-
 void sonarSlam::sonarCallback(const sonar_msgs::sonar_processed_data::ConstPtr& msg) {
 	// Variables
 	vector<float> ranges, angles, thresholdRanges, thresholdAngles;
@@ -38,63 +36,46 @@ void sonarSlam::sonarCallback(const sonar_msgs::sonar_processed_data::ConstPtr& 
 	thresholdRanges = msg->thresholdRange;
 
 	// Running line extraction
-	//cout << "Sonar2" << endl;
+	
 	bins = lE.processSegmentedScan(ranges, angles);
 	thresholded_data = bins;
-
-	//cout << "Sonar3" << endl;
 	votingSpace = lE.votingProcess(bins);
-	//cout << "Sonar4" << endl;
 	bestLines = lE.find4BestLine(votingSpace);
-	//lE.visualise4Line(bestLines, ranges, angles);
-	//cout << "Sonar5" << endl;
+
 	// Only to be used when a new feature is explored
 	uncertainty = calculateNormalDistributions(bestLines, thresholdAngles, thresholdRanges, lE.returnAngleResolution(), lE.returnRangeResolution());
-	//cout << "Sonar6" << endl;
+	
 	
 }
 
 void sonarSlam::dvlCallback(const nav_msgs::Odometry::ConstPtr& msg) {
 	
 	// Prediction
-	//cout << "1" << endl;
+
 	eS.getDVLMeasurements(msg->twist.twist.linear.x,msg->twist.twist.linear.y, msg->header.stamp.nsec * pow(10,-9), yaw);
-	//cout << "2" << endl;
 	eS.Fx();
-	//cout << "3" << endl;
 	eS.odomPrediction();
-	//cout << "4" << endl;
 	eS.covariancePrediction();
 	
 	// Update
-	//cout << "FOUND: " << endl;
-	//cout << "5" << endl;
+	
 	for (int i = 0; i < uncertainty.size(); i++) {
 	eS.getLines(uncertainty[i].mean_rho, uncertainty[i].mean_theta, uncertainty[i].variance_rho, uncertainty[i].variance_theta);
 	}
-	//cout << "6" << endl;
-	eS.predictLandmarks();
-	//cout << "7" << endl;
-	eS.H();
-	//cout << "8" << endl;
-	eS.sonarS();
-	//cout << "9" << endl;
 	
-	///cout << "Gir dette noen mening?" << endl;
-	//cout << "10" << endl;
+	eS.predictLandmarks();
+	eS.H();
+	eS.sonarS();
 	eS.sonarInnovation();
 	eS.sonarKalmanGain();
-	//cout << "11" << endl;
-	eS.addLandmark();
-	//cout << "12" << endl;
 	eS.sonarUpdate();
-	
-	//eS.visualiseMap(thresholded_data);
+	eS.addLandmark();
 	eS.resetVariables();
-	//cout << "Men hva faen da? :S " << endl;
+	
 	
 
-	//eS.printStates(false, false, false);
+	//eS.visualiseMap(thresholded_data);
+	eS.printStates(true, true, false);
 	
 	
 }
@@ -145,7 +126,7 @@ void sonarSlam::initializeSlam() {
 	for (int i = 0; i < tmp_Q.rows();i++) {
 		for (int j = 0; j < tmp_Q.rows(); j++) {
 			ostringstream ostr;
-            ostr << Q[ tmp_Q.rows()* i + 1];
+            ostr << Q[ tmp_Q.rows()* i + j];
             std::istringstream istr(ostr.str());
             istr >> tmp_Q(i, j);
 		}

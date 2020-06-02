@@ -77,7 +77,7 @@ MatrixXi measurementLineCompability(lines2Check foundLines, lines2Check predicte
         for (int j = 0; j < foundLines.meanRho.size(); j++) {
             //cout << "Found Rho: " << foundLines.meanRho[j] << ", Predicted Rho: " << predictedLines.meanRho[i] << endl;
             //cout << "Found Theta: " << foundLines.meanTheta[j] << ", Predicted Theta: " << predictedLines.meanTheta[i] << endl;
-            if (foundLines.meanRho[j] < predictedLines.meanRho[i] + 1 && foundLines.meanRho[j] > predictedLines.meanRho[i] - 1) {
+            if (foundLines.meanRho[j] < predictedLines.meanRho[i] + 0.5 && foundLines.meanRho[j] > predictedLines.meanRho[i] - 0.5) {
                 if (foundLines.meanTheta[j] < predictedLines.meanTheta[i] + 0.57 && foundLines.meanTheta[j] > predictedLines.meanTheta[i] - 0.57) {
                     compability(j,i) = 1;
                     //cout << "Compability Achived" << endl;
@@ -91,19 +91,36 @@ MatrixXi measurementLineCompability(lines2Check foundLines, lines2Check predicte
 }
 
 JCBB find_best_streak(int col, int row, MatrixXi mat, int streak, list<int> usedCols, int start_row,JCBB tmp_struct) {
-        int debug,tmp_streak;
+        int debug,tmp_streak, end_row;
         JCBB tmpList, bestList;
         bool update = false;
         bestList = tmp_struct;
+        
+        end_row = start_row-1;
+        
+        if (start_row == 0) {
+            end_row = mat.rows() - 1;
+            
+        }
 
-        if (mat(row,col) == 1 and (row<mat.rows())) {      
+
+          
+
+        
+        if (mat(row,col) == 1 && (row<mat.rows())) {      
+            
             streak += 1;
             usedCols.push_back(col);
             tmp_struct.matchedPrediction.push_back(col);
             tmp_struct.matchedMeasurement.push_back(row);
+            
+            if (end_row != row) {
+                   
             for (int i = 0; i < mat.cols(); i++) {
-                if ((find(usedCols.begin(), usedCols.end(), i) == usedCols.end())) {      
+                if ((find(usedCols.begin(), usedCols.end(), i) == usedCols.end())) {     
+                    
                     tmpList = find_best_streak(i, row+1, mat, streak, usedCols,start_row, tmp_struct);
+                   
                 }   
                 if (tmpList.matchedPrediction.size() > bestList.matchedPrediction.size()) {
                     bestList = tmpList;
@@ -111,30 +128,50 @@ JCBB find_best_streak(int col, int row, MatrixXi mat, int streak, list<int> used
                 }
             }
             if (update) {
+                
                 tmp_struct = bestList;
 
             }
+            }
 
         }
+        
         /*
-        else if (update == false and (row != start_row or row!= start_row-1)) {
+        if (row == end_row) {
+            cout << "YOLO" << endl;
+            return tmp_struct;
+        }     
+        
+
+        /*
+        if (update == false && bestList.matchedPrediction.size() > 0) {
+            
             for (int i = 0; i < mat.cols(); i++) {
-                if ((find(usedCols.begin(), usedCols.end(), i) == usedCols.end())) {      
-                    tmpList = find_best_streak(i, row+2, mat, streak, usedCols,start_row);
+                
+                if ((find(usedCols.begin(), usedCols.end(), i) == usedCols.end())) {   
+                    
+                    if (row+2 < mat.rows()) {  
+                        cout << "row+2" << endl;
+                        tmpList = find_best_streak(i, row+2, mat, streak, usedCols,start_row,tmp_struct);
                     }
-                    if (tmpList.size() > bestList.size()) {
+                    else {
+                        cout << "row0" << endl;
+                        tmpList = find_best_streak(i, 0, mat, streak, usedCols,start_row,tmp_struct);
+                    }
+
+                    if (tmpList.matchedPrediction.size() > bestList.matchedPrediction.size()) {
                     bestList = tmpList;
                     update = true;
-                }
-   
-            
-                }
-             if (update) {
-                usedCols = bestList;
-            }  
+                    }
+            }
+            if (update) {
+                tmp_struct = bestList;
+            }
 
-        }
-        */
+            }
+        
+        }*/
+        
 
         return tmp_struct;
 }
@@ -153,12 +190,13 @@ JCBB jointCompability(lines2Check foundLines, lines2Check predictedLines) {
     for (int j = 0; j < compabilityMatrix.rows(); j++) {
         for (int i = 0; i < compabilityMatrix.cols(); i++) {
             tmpList = find_best_streak(i, j, compabilityMatrix, 0, {},j, bestMatch);
-        
+            //cout << "Kjører i loopen, I: " << i << ", J: " << j << endl;
             if (tmpList.matchedPrediction.size() > bestList.matchedPrediction.size()) {
                 bestList = tmpList;
             }
         }
     }
+    
     
     /*
     cout << "Compability Matrix: " << endl << compabilityMatrix << endl;

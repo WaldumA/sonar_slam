@@ -62,7 +62,7 @@ void ekfSLAM::initialization(VectorXf X0, MatrixXf P0, MatrixXf Q) {
     scan = MatrixXf(1000,1000);
     scan.setZero();
     
-
+    DEBUG = false;
     
 
 }
@@ -77,8 +77,8 @@ void ekfSLAM::getDVLMeasurements(float u, float v, float time, float yaw) {
 
 // PREDICTION FUNCTIONS ///////////////////////////////////////////////////////////////////////////////////
 void ekfSLAM::odomPrediction() {
-    predictedStatesX(0) = predictedStatesX(0) + (measurementsZ(3)*T)*cos(measurementsZ(2)) + (measurementsZ(4)*T)*sin(measurementsZ(2)) ;
-    predictedStatesX(1) = predictedStatesX(1) + (measurementsZ(3)*T)*sin(measurementsZ(2)) - (measurementsZ(4)*T)*cos(measurementsZ(2));
+    predictedStatesX(0) = estimatedStatesX(0) + (measurementsZ(3)*T)*cos(measurementsZ(2)) + (measurementsZ(4)*T)*sin(measurementsZ(2)) ;
+    predictedStatesX(1) = estimatedStatesX(1) + (measurementsZ(3)*T)*sin(measurementsZ(2)) - (measurementsZ(4)*T)*cos(measurementsZ(2));
     predictedStatesX(2) = measurementsZ(2);
     
 }
@@ -89,8 +89,10 @@ void ekfSLAM::Fx() {
         m << 1, 0, -measurementsZ(3)*T*sin(predictedStatesX(2))+measurementsZ(4)*T*cos(predictedStatesX(2)), 
         0, 1, measurementsZ(3)*T*cos(predictedStatesX(2))+measurementsZ(4)*T*sin(predictedStatesX(2)), 
         0, 0, 1;   
+
     matrixF = MatrixXf::Identity(3+matrixMap.rows(),3+matrixMap.rows());
     matrixF.topLeftCorner(3,3) = m;
+    
 
 
 }
@@ -103,11 +105,18 @@ void ekfSLAM::Fx() {
 
 
 void ekfSLAM::covariancePrediction() {
-    
-    predictedP = matrixF*estimatedP*matrixF.transpose(); //+ matrixI*matrixQ*matrixI.transpose();
-    
-    //cout << "Early P: " << endl << predictedP << endl;
-    
+    MatrixXf G(estimatedP.rows(),3);
+    G.setZero();
+    G.topLeftCorner(3,3) = MatrixXf::Identity(3,3);
+    /*
+    cout << "EstimatedP" << endl << estimatedP << endl;
+    cout << "FHF: " << endl << matrixF*estimatedP*matrixF.transpose() << endl;
+    cout << "Q: " << endl << G*matrixQ*G.transpose() << endl;
+    cout << "Q: " << endl << matrixQ << endl;
+    cout << "G: " << endl << matrixQ*G.transpose() << endl;
+    cin >> debug;
+    */
+    predictedP = matrixF*estimatedP*matrixF.transpose() + G*matrixQ*G.transpose(); 
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -148,6 +157,13 @@ void ekfSLAM::getLines(float meanRho, float meanTheta, float varRho, float varTh
 }
 
 void ekfSLAM::sonarInnovation() {
+    bool InnovationDebug = false;
+
+    if (DEBUG) {
+        cout << "SONAR INNOVATION" << endl;
+    }
+
+
     vector<float> tmp_innovation;
     vector<float> associated_predictions, associated_measurements;  
     // Variables
@@ -155,13 +171,21 @@ void ekfSLAM::sonarInnovation() {
     JCBB bestMatch;
     if (predictedLines.meanRho.size() != 0) {
 
-    //cout << "[INFO] Starting jointCompability..." << endl;
+    if (InnovationDebug) {
+        cout << "[INFO] Starting jointCompability..." << endl;
+    }
     bestMatch = jointCompability(possibleLines,predictedLines);
+    FORDEBUGGING = bestMatch;
+    }
+    if (InnovationDebug) {
+        cout << "[INFO] Ending jointCompability..." << endl;
     }
     
     if (possibleLines.meanRho.size() > 0) {
         
-        
+        if (InnovationDebug) {
+            cout << "[INFO] Calculating global positions..." << endl;
+        }
         for (int i = 0; i < possibleLines.meanTheta.size(); i++) {
             if (find(bestMatch.matchedMeasurement.begin(),bestMatch.matchedMeasurement.end(),i) == bestMatch.matchedMeasurement.end()) {
                 //newLandmarks.push_back(i); 
@@ -186,26 +210,31 @@ void ekfSLAM::sonarInnovation() {
             else {
                 associated_predictions.push_back(bestMatch.matchedPrediction[i]);
                 associated_measurements.push_back(bestMatch.matchedMeasurement[i]);
-                tmp_innovation.push_back(possibleLines.meanRho[i]-predictedLines.meanRho[bestMatch.matchedPrediction[i]]);
-                tmp_innovation.push_back(possibleLines.meanTheta[i]-predictedLines.meanTheta[bestMatch.matchedPrediction[i]]);
+                tmp_innovation.push_back(possibleLines.meanRho[bestMatch.matchedMeasurement[i]]-predictedLines.meanRho[bestMatch.matchedPrediction[i]]);
+                tmp_innovation.push_back(possibleLines.meanTheta[bestMatch.matchedMeasurement[i]]-predictedLines.meanTheta[bestMatch.matchedPrediction[i]]);
 
             }      
             
         }
         
         if (associated_predictions.size()) {
-            
+            if (InnovationDebug) {
+                cout << "[INFO] Calculating innovation..." << endl;
+            }
             innovation = VectorXf(tmp_innovation.size());
             for (int i = 0; i < innovation.size(); i++) {
                 innovation(i) = tmp_innovation[i];
             }
-            
+            if (InnovationDebug) {
+                cout << "[INFO] Calculating assosiations for H..." << endl;
+                cout << "H size assosiation, rows: " << assosiationH.rows() << " cols: " << assosiationH.cols() << endl;
+                cout << "H size, rows: " << matrixH.rows() << " cols: " << matrixH.cols() << endl;
+            }
             assosiationS = MatrixXf(associated_predictions.size()*2,associated_predictions.size()*2);
             assosiationH = MatrixXf(associated_predictions.size()*2,matrixH.rows()+3);
             assosiationS.setZero();
             assosiationH.setZero();
-            //cout << "H size assosiation, rows: " << assosiationH.rows() << " cols: " << assosiationH.cols() << endl;
-            //cout << "H size, rows: " << matrixH.rows() << " cols: " << matrixH.cols() << endl;
+            
             for (int i = 0; i < associated_predictions.size()*2; i+=2) {
                 assosiationH(i,0) = matrixH(i,0);
                 assosiationH(i,1) = matrixH(i,1);
@@ -215,14 +244,13 @@ void ekfSLAM::sonarInnovation() {
                     assosiationH(i,3+j*2) = matrixH(associated_measurements[i],3+associated_predictions[j]*2);
                     assosiationH(i,4+j*2) = matrixH(associated_measurements[i],4+associated_predictions[j]*2);
                     assosiationH(i+1,4+j*2) = matrixH(associated_measurements[i]+1,4+associated_predictions[j]*2);
-                    
-                   
-                    //cout << "AssosiationS: " << endl << assosiationS << endl;
-                    //cout << "Matrix S: " << endl << matrixS << endl;
-
                 }
             }
-            
+            if (InnovationDebug) {
+                cout << "[INFO] Calculating assosiations for S..." << endl;
+                cout << "S size assosiation, rows: " << assosiationS.rows() << " cols: " << assosiationS.cols() << endl;
+                cout << "S size, rows: " << matrixS.rows() << " cols: " << matrixS.cols() << endl;
+            }
             for (int i = 0; i < associated_predictions.size(); i++) {
                 for (int j=0; j < associated_predictions.size(); j++ ) {
                     assosiationS(i*2,j*2) = matrixS(associated_predictions[i]*2,associated_predictions[j]*2);
@@ -247,12 +275,14 @@ void ekfSLAM::sonarInnovation() {
 
 void ekfSLAM::addLandmark () {
     int debug;
-    
+    if (DEBUG) {
+        cout << "ADD LANDMARK" << endl;
+    }
 
 
 
     if (newLandmark) {
-    //cout << "addLandmark1" << endl;
+    
     MatrixXf tmp_predictedP;
     tmp_predictedP = predictedP;
     
@@ -262,16 +292,24 @@ void ekfSLAM::addLandmark () {
         
         //cout << "addLandmark2" << endl;
         matrixMap.conservativeResize(matrixMap.rows()+2,matrixMap.cols()+2);
+        matrixMap.row(matrixMap.rows()-2).setZero();
+        matrixMap.row(matrixMap.rows()-1).setZero();
+        matrixMap.col(matrixMap.cols()-2).setZero();
+        matrixMap.col(matrixMap.cols()-1).setZero();
         matrixMap(matrixMap.rows()-2,matrixMap.rows()-2) = landmarkLines.meanRho[i];
         matrixMap(matrixMap.rows()-1,matrixMap.rows()-1) = landmarkLines.meanTheta[i];
-        predictedP.conservativeResize(predictedP.rows()+2,predictedP.cols()+2);
-        predictedP.row(predictedP.rows()-2).setZero();
-        predictedP.row(predictedP.rows()-1).setZero();
-        predictedP.col(predictedP.cols()-2).setZero();
-        predictedP.col(predictedP.cols()-1).setZero();
+        estimatedP.conservativeResize(estimatedP.rows()+2,estimatedP.cols()+2);
+        estimatedP.row(estimatedP.rows()-2).setZero();
+        estimatedP.row(estimatedP.rows()-1).setZero();
+        estimatedP.col(estimatedP.cols()-2).setZero();
+        estimatedP.col(estimatedP.cols()-1).setZero();
+        estimatedP(estimatedP.rows()-2,estimatedP.rows()-2) = 1;
+        estimatedP(estimatedP.rows()-1,estimatedP.rows()-1) = 0.57;
+        //predictedStatesX.conservativeResize(predictedStatesX.rows()+2,1);
+        //predictedStatesX(predictedStatesX.rows()-2) = landmarkLines.meanRho[i];
+        //predictedStatesX(predictedStatesX.rows()-1) = landmarkLines.meanTheta[i];
+        //cout << "PredictedX: "<< endl << predictedStatesX << endl;
 
-        predictedP(predictedP.rows()-2,predictedP.rows()-2) = landmarkLines.varRho[i];
-        predictedP(predictedP.rows()-1,predictedP.rows()-1) = landmarkLines.varTheta[i];
 
     }
 
@@ -295,6 +333,10 @@ void ekfSLAM::addLandmark () {
 }
 
 void ekfSLAM::predictLandmarks() {
+    if (DEBUG) {
+        cout << "PREDICT LANDMARKS" << endl;
+    }
+
     // Variables
     float thetaL, Xl, Yl, rhoL;
     predictedLandmarks = VectorXf(matrixMap.rows());
@@ -305,12 +347,12 @@ void ekfSLAM::predictLandmarks() {
         
         Xl = matrixMap(i,i)*cos(matrixMap(i+1,i+1));
         Yl = matrixMap(i,i)*sin(matrixMap(i+1,i+1));
-        rhoL = sqrt(pow(Xl - predictedStatesX[0],2)+pow(Yl-predictedStatesX(1),2));
+        rhoL = sqrt(pow(Xl - predictedStatesX(0),2)+pow(Yl-predictedStatesX(1),2));
         if (Yl > 0) {
-            thetaL = acos((Xl-predictedStatesX(0))/rhoL)-predictedStatesX(3);
+            thetaL = acos((Xl-predictedStatesX(0))/rhoL)-predictedStatesX(2);
                 }
         else {
-            thetaL = -(acos((Xl-predictedStatesX(0))/rhoL)-predictedStatesX(3));
+            thetaL = -(acos((Xl-predictedStatesX(0))/rhoL)-predictedStatesX(2));
         }
         //cout << "Rho: " << rhoL << endl;
         //cout << "Theta: " << thetaL << endl;
@@ -322,6 +364,39 @@ void ekfSLAM::predictLandmarks() {
 
 
 void ekfSLAM::resetVariables() {
+
+    bool DEBUGvar = false;
+   
+    if (DEBUGvar) {
+        cout << "LINES AND PREDICTIONS:" << endl;
+        for (int i = 0; i < possibleLines.meanRho.size(); i++) {
+            cout << "Line number " << i << ", RHO: " << possibleLines.meanRho[i] << ", Theta: " << possibleLines.meanTheta[i] << endl;
+        }
+        for (int i = 0; i < predictedLines.meanRho.size(); i++) {
+            cout << "Prediction number " << i << ", RHO: " << predictedLines.meanRho[i] << ", Theta: " << predictedLines.meanTheta[i] << endl;
+        }
+        cout << "CORRESPONDING H AND S MATRIX: " << endl;
+        cout << "Matrix H: " << endl << matrixH << endl;
+        cout << "Matrix S: " << endl << matrixS << endl;
+        cout << "ASSOSICATED PREDICTIONS AND LINES: " << endl;
+        for (int i = 0; i < FORDEBUGGING.matchedMeasurement.size(); i++) {
+            cout << "Measurement: " << FORDEBUGGING.matchedMeasurement[i] << ", Prediction: " <<  FORDEBUGGING.matchedPrediction[i] << endl;
+        }
+        cout << "ASSOCIATED H AND S MATRIXES" << endl;
+        cout << "ASSOSICATED H" << endl << assosiationH << endl;
+        cout << "ASSOSICATED S" << endl << assosiationS << endl;
+        cout << "KALMAN GAIN" << endl << matrixW << endl;
+        cout << "COVARIANCE AND STATE ESTIMATION" << endl;
+        cout << "STATES: " << endl << estimatedStatesX << endl;
+        cout << "COVARIANCE estimated: " << endl << estimatedP << endl;
+        cout << "COVARIANCE predicted: " << endl << predictedP << endl;
+
+        cin >> debug;    
+    }
+
+
+
+
     theQuaternion q;
     possibleLines.meanRho.clear();
     possibleLines.meanTheta.clear();
@@ -335,10 +410,10 @@ void ekfSLAM::resetVariables() {
     landmarkLines.meanTheta.clear();
     landmarkLines.varRho.clear();
     landmarkLines.varTheta.clear();
-    //cout << "Position x: " << predictedStatesX(0) << endl;
-    //cout << "Position y: " << predictedStatesX(1) << endl;
-    //q = ToQuaternion(predictedStatesX(2),0,0);
-    //cout << "Yaw: " << q.z << endl;
+
+
+    
+    
 
 }
 
@@ -351,26 +426,96 @@ void ekfSLAM::gatingTest() {
 }
 
 void ekfSLAM::sonarS() {
-    //cout << "H - rows: " << matrixH.rows() << ", cols: " << matrixH.cols() << endl;
-    //cout << "P - rows: " << predictedP.rows() << ", cols: " << predictedP.cols() << endl;
-     matrixS = matrixH*predictedP*matrixH.transpose();
+    bool matrixSDebug = false;
+    if (DEBUG) {
+        cout << "S-MATRIX" << endl;
+    }
+    MatrixXf R(predictedP.rows()-3,predictedP.cols()-3);
+    R.setZero();
+    for (int i = 0; i < R.rows(); i++) {
+        if ( i % 2 == 0) {
+            R(i,i) = 1000;
+        }
+        else {
+            R(i,i) = 1000;
+        }
+    }
+    matrixS = 100*matrixH*predictedP*matrixH.transpose() + R;
+    if (matrixSDebug) {
+    cout << "MatrixH: " << endl << matrixH << endl;
+    cout << "MatrixP " << endl << predictedP << endl;    
+    cout << "MatrixS: " << endl << matrixS << endl;
+    }
 }
 
 void ekfSLAM::sonarKalmanGain() {
+
+    if (DEBUG) {
+        cout << "KALMANGAIN" << endl;
+    }
+
+
     MatrixXf m;
     MatrixXf A;
     
     A = assosiationS;
     m = predictedP*assosiationH.transpose();
-    matrixW =  A.inverse()*m;
-
+    matrixW =  m*A.inverse();
+    
+    //cout << "MatrixS: " << endl << A.inverse() << endl;
+    //cout << "MatrixH:" << endl << assosiationH << endl;
+    //cout << "MatrixP: " << endl << predictedP << endl;
+    //cout << "MatrixW: " << endl << matrixW << endl;
+    //cout << "Innovation: " << endl << innovation << endl;
 }
 
 void ekfSLAM::sonarUpdate() {
-    //estimatedStatesX = predictedStatesX + matrixW * innovation;
-    //estimatedP = (matrixI - matrixW*matrixH)*predictedP;
-    //cout << "P: " << endl << predictedP << endl;
-    estimatedP = predictedP;
+
+    if (DEBUG) {
+        cout << "SONAR UPDATE" << endl;
+    }
+
+    MatrixXf I;
+    VectorXf tmp;
+    I = MatrixXf::Identity(predictedP.rows(),predictedP.rows()); 
+    if (matrixW.rows() > 0 && matrixW.cols() > 0) {
+        tmp = predictedStatesX;
+        predictedStatesX = VectorXf(3+matrixMap.rows());
+        predictedStatesX(0) = tmp(0);
+        predictedStatesX(1) = tmp(1);
+        predictedStatesX(2) = tmp(2);
+        
+        
+        for(int i = 3; i < predictedStatesX.size(); i++) {
+            predictedStatesX(i) = matrixMap(i-3,i-3);
+        }
+        
+        estimatedStatesX = predictedStatesX + (matrixW * innovation);
+
+        for(int i = 3; i < predictedStatesX.size(); i++) {
+            matrixMap(i-3,i-3) = estimatedStatesX(i);
+        }
+
+        estimatedP = (I - matrixW*matrixH)*predictedP;
+        /*
+        cout << "EstimatedP: " << endl << estimatedP << endl;
+        cout << "MatrixW: " << endl << matrixW << endl;
+        cout << "MatrixH: " << endl << matrixH << endl;
+
+
+        cout << "Matrix I rows: " << I.rows() << ", cols: " << I.cols() << endl;
+        cout << "W*H rows: " << (matrixW*matrixH).rows() << ", cols: " << (matrixW*matrixH).cols() << endl;
+        
+        */
+        
+    }
+    else {
+        estimatedStatesX = predictedStatesX;
+        estimatedP = predictedP;
+    }
+    //estimatedStatesX = predictedStatesX;
+    //cout << "The P-matrix: " << estimatedP << endl;
+    //estimatedP = predictedP;
     
 }   
 
@@ -388,10 +533,10 @@ void ekfSLAM::sonarUpdate() {
 void ekfSLAM::printStates(bool xEstimate, bool xPrediction, bool pCoovariance) {
     
     if (xEstimate) {
-        cout << "Position X: " << estimatedStatesX(0) << endl << "Velocity X: " << estimatedStatesX(4) << endl;
+        cout << "Position EstimatedX: " << estimatedStatesX(0) << ", EstimatedY: " << estimatedStatesX(1) << ", yaw: " << estimatedStatesX(2) << endl;
     }
     if (xPrediction) {
-        cout << "Position X: " << predictedStatesX(0) << ", Velocity X: " << predictedStatesX(3) << endl;
+        cout << "Position PredictedX: " << predictedStatesX(0) << ", PredictedY: " << predictedStatesX(1) << ", yaw: " << predictedStatesX(2) << endl;
     }
     if (pCoovariance) {
         cout << "Estimated Coovariance: " << estimatedP << endl;
@@ -461,52 +606,3 @@ void ekfSLAM::visualiseMap(votingBins data) {
 
 
 
-
-
-/*
-int main(){
-    ekfSLAM slam;
-    return 1;
-}
-*/
-
-
-
-/*
-// DVL UPDATE FUNCTIONS //////////////////////////////////////////////////////////////////////////////////
-void ekfSLAM::DVLH() {
-    MatrixXf h(8,8);
-    h << 1,0,0,0,0,0,0,0,
-    0,1,0,0,0,0,0,0,
-    0,0,1,0,0,0,0,0,
-    0,0,0,1,0,0,0,0,
-    0,0,0,0,1,0,0,0,
-    0,0,0,0,0,1,0,0,
-    0,0,0,0,0,0,1,0,
-    0,0,0,0,0,0,0,1;
-    matrixHDVL = h;
-}
-
-void ekfSLAM::KalmanGainDVL() {
-    matrixW = matrixP*matrixHDVL.transpose()*matrixSDVL.inverse();
-}
-void ekfSLAM::DVLupdate() {
-
-    estimatedStatesX = predictedStatesX + matrixW*innovation;
-
-
-
-    matrixP = (-matrixW*matrixHDVL)*matrixP;
-}
-
-void ekfSLAM::DVLinnovation() {
-    innovation = measurementsZ - matrixHDVL*predictedStatesX;
-}
-
-void ekfSLAM::DVLcovariance() {
-    matrixSDVL = matrixHDVL*matrixP*matrixHDVL.transpose();  // + R, Spør Øyvind om measurement matrix
-}
-
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
-*/

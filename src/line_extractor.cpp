@@ -72,7 +72,7 @@ vector<bestLine> lineExtractor::find4BestLine(MatrixXi votingSpace) {
     
     MatrixXi::Index maxRow, maxCol;
     vector<float> bestAngles;
-    int threshold = 70;
+    int threshold = 100;
     bool run_check;
     bool duplicate;
     run_check = true;
