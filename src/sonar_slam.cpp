@@ -2,17 +2,79 @@
 
 
 
+void sonarSlam::EKFCallback(const nav_msgs::Odometry::ConstPtr& msg) {
+	float x,y,qw,qx,qy,qz, yaw;
+	ekf_x = msg->pose.pose.position.x;
+	ekf_y = msg->pose.pose.position.y;
+	qw = msg->pose.pose.orientation.w;
+	qx = msg->pose.pose.orientation.x;
+	qy = msg->pose.pose.orientation.y;
+	qz = msg->pose.pose.orientation.z;
+	ekf_yaw = atan2(2.0f * (qw * qz + qx * qy), 1.0f - 2.0f * (qy * qy + qz * qz));
+	//cout << "EKF yaw: " << yaw << endl;
+
+
+
+}
+
+
 void sonarSlam::IMUCallback(const sensor_msgs::Imu::ConstPtr& msg) {
-	float tmp_yaw, time_step;
+	
+	float tmp_yaw, time_step, dt, test_time;
 	theQuaternion q;
+
+
+
+	if (first_time) {
 	tmp_yaw = msg->angular_velocity.z;
+	time_stamp = msg->header.stamp;
+	//cout << "The time: " << time_stamp.nsec << endl;
+
+
+	if (tmp_yaw > 0.5) {
+		//cout << "TMP_YAW: " << tmp_yaw << endl;
+	}
+
+
+
+
+	dt = (time_stamp.nsec - prev_stamp.nsec)*pow(10,-9);
+	//cout << (time_stamp.nsec - prev_stamp.nsec)*pow(10,-9) << endl;
+
+
 	//dt = (ros::Time::now().nsec - prev_time.nsec);
-	time_step = 1.0/126.0;
+	time_step = float(dt)*2;
+	test_time = 1.0/126.0;
+	
+	
+	
+	//cout << "Changing: " << time_step << ", Constant: " << test_time << endl;
 		//prev_time = ros::Time::now();
 		//cout << "dt: " << dt*0.000000001 << endl;
+
 	
+	prev_stamp = time_stamp;
+	}
+	else {
+		tmp_yaw = 0;
+		prev_stamp = time_stamp;
+		time_step = 0;
+		first_time = true;
+	}
+	
+	if (time_step > 0.01) {
+		time_step = (1/126.0);
+	}
 	yaw += tmp_yaw * time_step;
+	if (yaw > 3.1415) {
+		yaw = yaw - 2*3,1415;
+	}
+	if (yaw < -3.1415) {
+		yaw = yaw + 2*3.1415;
+	}
 	q = ToQuaternion(yaw,0,0);
+	//cout << "YAW: " << yaw << endl;
+	
 	
 	//cout << "Orientation: " << endl;
 	//cout << "x: " << q.x << endl << "y: " << q.y << endl << "z: " << q.z << endl << "w: " << q.w << endl;
@@ -20,6 +82,13 @@ void sonarSlam::IMUCallback(const sensor_msgs::Imu::ConstPtr& msg) {
 }
 
 void sonarSlam::sonarCallback(const sonar_msgs::sonar_processed_data::ConstPtr& msg) {
+	
+	// Predict
+	eS.getMeasurements(ekf_x,ekf_y,ekf_yaw);
+	eS.Fx();
+	eS.prediction();
+	eS.covariancePrediction();
+
 	// Variables
 	vector<float> ranges, angles, thresholdRanges, thresholdAngles;
 	vector<bestLine> bestLines;
@@ -41,9 +110,43 @@ void sonarSlam::sonarCallback(const sonar_msgs::sonar_processed_data::ConstPtr& 
 	thresholded_data = bins;
 	votingSpace = lE.votingProcess(bins);
 	bestLines = lE.find4BestLine(votingSpace);
+	
 
 	// Only to be used when a new feature is explored
 	uncertainty = calculateNormalDistributions(bestLines, thresholdAngles, thresholdRanges, lE.returnAngleResolution(), lE.returnRangeResolution());
+
+
+	// Update
+	
+	for (int i = 0; i < uncertainty.size(); i++) {
+	eS.getLines(uncertainty[i].mean_rho, uncertainty[i].mean_theta, uncertainty[i].variance_rho, uncertainty[i].variance_theta);
+	}
+	
+	eS.predictLandmarks();
+	eS.H();
+	eS.sonarS();
+	eS.sonarInnovation();
+	eS.sonarKalmanGain();
+	eS.sonarUpdate();
+	
+
+	if (eS.enoughLandmarks()) {
+	
+		eS.addLandmark();
+	}
+	
+	
+	
+	//eS.visualiseMap(thresholded_data);
+	//eS.printStates(true	, false, false);
+	eS.resetVariables();
+	statesToPublish = eS.getStates();
+	
+	msgToPublish.pose.pose.position.x = statesToPublish(0); 
+	msgToPublish.pose.pose.position.y = statesToPublish(1);
+	msgToPublish.pose.pose.position.z = statesToPublish(2);
+	odometry_pub.publish(msgToPublish);
+	//cout << "One loop" << endl;
 	
 	
 }
@@ -51,7 +154,7 @@ void sonarSlam::sonarCallback(const sonar_msgs::sonar_processed_data::ConstPtr& 
 void sonarSlam::dvlCallback(const nav_msgs::Odometry::ConstPtr& msg) {
 	
 	// Prediction
-
+	
 	eS.getDVLMeasurements(msg->twist.twist.linear.x,msg->twist.twist.linear.y, msg->header.stamp.nsec * pow(10,-9), yaw);
 	eS.Fx();
 	eS.odomPrediction();
@@ -69,13 +172,25 @@ void sonarSlam::dvlCallback(const nav_msgs::Odometry::ConstPtr& msg) {
 	eS.sonarInnovation();
 	eS.sonarKalmanGain();
 	eS.sonarUpdate();
-	eS.addLandmark();
-	eS.resetVariables();
-	
-	
+	//(eS.enoughLandmarks()) {
 
-	//eS.visualiseMap(thresholded_data);
-	eS.printStates(true, true, false);
+	//	if (eS.enoughLandmarks()) {
+	
+	//	eS.addLandmark();
+	//}
+	
+	
+	
+	eS.visualiseMap(thresholded_data);
+	//eS.printStates(true	, false, false);
+	eS.resetVariables();
+	statesToPublish = eS.getStates();
+	
+	msgToPublish.pose.pose.position.x = statesToPublish(0); 
+	msgToPublish.pose.pose.position.y = statesToPublish(1);
+	msgToPublish.pose.pose.position.z = statesToPublish(2);
+	odometry_pub.publish(msgToPublish);
+	//cout << "One loop" << endl;
 	
 	
 }
@@ -95,6 +210,7 @@ void sonarSlam::initializeSlam() {
 	VectorXf tmp_X(3);
 	tmp_X.setZero();
 	XmlRpc::XmlRpcValue X;
+	first_time = false;
 	
 	
 	
@@ -157,8 +273,15 @@ void sonarSlam::initializeSlam() {
 		
 	// Initiate subscribers
 	sonar_sub = nh.subscribe(sonar_sub_topic,1000,&sonarSlam::sonarCallback,this);
-	dvl_sub = nh.subscribe(dvl_sub_topic,1000,&sonarSlam::dvlCallback,this);
-	imu_sub = nh.subscribe(imu_sub_topic,1000,&sonarSlam::IMUCallback, this);
+	ekf_sub = nh.subscribe("odometry/filtered",100,&sonarSlam::EKFCallback,this);
+	//dvl_sub = nh.subscribe(dvl_sub_topic,1000,&sonarSlam::dvlCallback,this);
+	//imu_sub = nh.subscribe(imu_sub_topic,1000,&sonarSlam::IMUCallback, this);
+	
+
+	// Initiate publisher
+	
+	odometry_pub = nh.advertise<nav_msgs::Odometry>("/MANTA/SLAM",100);
+	
 
 }
 	
@@ -180,12 +303,4 @@ landmark prediction også må fikses. Anyway fiks it :)
 3. Få til og kjøre 6m baggen frem og tilbake med kun og finne noen få landmarks. Tune på verdier etc 
 ettersom hva som trengs.
 4. Få inn landmarksa som blir funnet som update i state estimation.
-
-
-
-
-
-
-
-
 */

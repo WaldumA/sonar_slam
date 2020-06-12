@@ -72,7 +72,7 @@ vector<bestLine> lineExtractor::find4BestLine(MatrixXi votingSpace) {
     
     MatrixXi::Index maxRow, maxCol;
     vector<float> bestAngles;
-    int threshold = 100;
+    int threshold = 150;
     bool run_check;
     bool duplicate;
     run_check = true;
@@ -85,6 +85,7 @@ vector<bestLine> lineExtractor::find4BestLine(MatrixXi votingSpace) {
     tmpLine.theta = votingAngles[maxCol]; 
     bestAngles.push_back(tmpLine.theta); 
     bestLines.push_back(tmpLine);
+    
     for (int i = maxRow - 5; i < maxRow +5; i++) {
         for (int j = maxCol - 10; j < maxCol + 10; j++ )
             if (i >= 0 && j>= 0) {
@@ -94,15 +95,18 @@ vector<bestLine> lineExtractor::find4BestLine(MatrixXi votingSpace) {
     
 
     // Finding the most voted(up to a maximum of 4) lines
-    while (bestLines.size() < 3 && run_check) {
+    while (bestLines.size() < 1 && run_check) {
         votingSpace.maxCoeff(&maxRow,&maxCol);
+        
         if (votingSpace(maxRow,maxCol) > threshold) {
+            //cout << votingSpace(maxRow,maxCol) << endl;
             for (int j = 0; j < bestAngles.size(); j++) {
                 if (bestAngles[j] + 0.5 > votingAngles[maxCol] && bestAngles[j]-0.5 < votingAngles[maxCol]) {
                     duplicate = true;
                 }
             }
             if (!duplicate) {
+                
                 tmpLine.rho = votingRanges[maxRow];
                 tmpLine.theta = votingAngles[maxCol]; 
                 bestAngles.push_back(tmpLine.theta);

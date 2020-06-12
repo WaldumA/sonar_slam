@@ -23,14 +23,17 @@ private:
 	ros::NodeHandle nh;
 
 	// ROS parameters
+	ros::Publisher odometry_pub;
 	ros::Subscriber sonar_sub;
 	ros::Subscriber dvl_sub;
 	ros::Subscriber imu_sub;
+	ros::Subscriber ekf_sub;
 
 	// ROS params
 	string sonar_sub_topic;
 	string dvl_sub_topic;
 	string imu_sub_topic;
+	
 
 	// Line extractor
 	lineExtractor lE;
@@ -39,11 +42,16 @@ private:
 	ekfSLAM eS;
 
 	// Variables
+	bool first_time;
+	bool debug;
 	float prevT, T;	
-	float yaw, dt;
-	ros::Time prev_time;
+	float yaw,dt;
+	float ekf_yaw,ekf_x,ekf_y;
+	ros::Time prev_stamp, time_stamp;
 	vector<normalDistribution> uncertainty; 
 	votingBins thresholded_data;
+	Vector3f statesToPublish;
+	nav_msgs::Odometry msgToPublish;
 
 public:
 sonarSlam() {
@@ -60,6 +68,13 @@ void initializeSlam();
 void sonarCallback(const sonar_msgs::sonar_processed_data::ConstPtr& msg);
 void dvlCallback(const nav_msgs::Odometry::ConstPtr& msg);
 void IMUCallback(const sensor_msgs::Imu::ConstPtr& msg);
+void EKFCallback(const nav_msgs::Odometry::ConstPtr& msg);
+void sonarEKFcallback(const sonar_msgs::sonar_processed_data::ConstPtr& msg);
+
+
+
+
+
 };
 
 

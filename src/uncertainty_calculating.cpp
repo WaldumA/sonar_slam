@@ -76,10 +76,20 @@ normalDistribution findDistribution(vector<bestLine> accepted_lines) {
     }
     variance_theta = variance_theta/float(accepted_lines.size());
     variance_rho = variance_rho/float(accepted_lines.size());
+    
+    if (accepted_lines.size() > 0) {
+   // cout << "UPDATE" << endl;
+    distribution.mean_rho = accepted_lines[0].rho;
+    distribution.mean_theta = accepted_lines[0].theta;
+    distribution.variance_rho = variance_rho;
+    distribution.variance_theta = variance_theta;
+    }
+    else {
     distribution.mean_rho = mean_rho;
     distribution.mean_theta = mean_theta;
     distribution.variance_rho = variance_rho;
     distribution.variance_theta = variance_theta;
+    }
     return distribution;
 }
 
@@ -148,7 +158,7 @@ vector<normalDistribution> calculateNormalDistributions(vector<bestLine> bestLin
     MatrixXi scan;
     int scale = 50;
     int overlap_score;
-    int threshold = 150;
+    int threshold = 280;
     scan = MatrixXi(500,500);
     scan.setConstant(0);
     

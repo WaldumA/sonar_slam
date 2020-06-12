@@ -32,3 +32,4 @@ float binarySearch(vector<float> theList, float number, int sizeOfList);
 MatrixXi measurementLineCompability(lines2Check foundLines, lines2Check predictedLines);
 JCBB jointCompability(lines2Check foundLines, lines2Check predictedLines);
 JCBB find_best_streak(int row, int col, MatrixXi mat, int streak, list<int> usedCols,int start_row,JCBB tmp_struct );
+float gatingTest(JCBB potentialStreak, lines2Check foundLines, lines2Check predictedLines);

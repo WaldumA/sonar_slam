@@ -58,14 +58,16 @@ class ekfSLAM {
         int debug;
         vector<int> newLandmarks;
         lines2Check possibleLines, predictedLines, landmarkLines;
-        bool newLandmark, DEBUG;
-        float R, doAsso, alpha, sensOffset, T;
+        bool newLandmark, DEBUG, show_landmark;
+        float R, doAsso, alpha, sensOffset, T, prev_yaw, test_yaw, estiamted_YAW; 
+        float prev_ekf_yaw, prev_ekf_x, prev_ekf_y;
         odomStates states, measurements;
+        float change_in_x, change_in_y, change_in_angle;
         // EKF Matrices
         MatrixXf predictedP, estimatedP, matrixF, matrixH, matrixS, matrixW, assosiationS, assosiationH, estimatedPtest;
         MatrixXf matrixQ, matrixI, statesEta, statesP, matrixMap, matrixG;
         VectorXf estimatedStatesX, predictedStatesX, measurementsZ, innovation, predictedLandmarks, matrixR;
-     
+        VectorXf possibleInnovation;
 
     public:
     ekfSLAM() {
@@ -99,18 +101,13 @@ class ekfSLAM {
     void sonarUpdate();
     void predictLandmarks();
     void resetVariables();
+    void getMeasurements(float ekf_x,float ekf_y,float ekf_yaw);
+    void prediction();
     
-
-
-  
-
     // Debugging
     void printStates(bool xEstimate, bool xPrediction, bool pCoovariance);
     void visualiseMap(votingBins data);
-
-
-
-
+    bool enoughLandmarks();
 
     // DVL update
     void DVLH();
@@ -118,4 +115,7 @@ class ekfSLAM {
     void DVLinnovation();
     void KalmanGainDVL();
     void DVLcovariance();
+
+    // Get states for publisher
+    Vector3f getStates();
 };

@@ -70,6 +70,9 @@ MatrixXi measurementLineCompability(lines2Check foundLines, lines2Check predicte
     //cout << "Predicted lines: " <<predictedLines.meanRho.size() << endl;
     compability.setZero();
     int debug;
+    float theta_gate = 0.5;
+    float rho_gate = 0.7;
+    float tmp_term;
  
     // Looping through all landmarks and sees who is close enough
     
@@ -77,10 +80,10 @@ MatrixXi measurementLineCompability(lines2Check foundLines, lines2Check predicte
         for (int j = 0; j < foundLines.meanRho.size(); j++) {
             //cout << "Found Rho: " << foundLines.meanRho[j] << ", Predicted Rho: " << predictedLines.meanRho[i] << endl;
             //cout << "Found Theta: " << foundLines.meanTheta[j] << ", Predicted Theta: " << predictedLines.meanTheta[i] << endl;
-            if (foundLines.meanRho[j] < predictedLines.meanRho[i] + 0.5 && foundLines.meanRho[j] > predictedLines.meanRho[i] - 0.5) {
-                if (foundLines.meanTheta[j] < predictedLines.meanTheta[i] + 0.57 && foundLines.meanTheta[j] > predictedLines.meanTheta[i] - 0.57) {
+            if (foundLines.meanRho[j] < predictedLines.meanRho[i] + rho_gate && foundLines.meanRho[j] > predictedLines.meanRho[i] - rho_gate) {
+                if (foundLines.meanTheta[j] < predictedLines.meanTheta[i] + theta_gate && foundLines.meanTheta[j] > predictedLines.meanTheta[i] - theta_gate) {
                     compability(j,i) = 1;
-                    //cout << "Compability Achived" << endl;
+                    
                 }
             }
             
@@ -118,9 +121,12 @@ JCBB find_best_streak(int col, int row, MatrixXi mat, int streak, list<int> used
                    
             for (int i = 0; i < mat.cols(); i++) {
                 if ((find(usedCols.begin(), usedCols.end(), i) == usedCols.end())) {     
-                    
+                    if (row+1 != mat.rows()) {
                     tmpList = find_best_streak(i, row+1, mat, streak, usedCols,start_row, tmp_struct);
-                   
+                    }
+                    else {
+                        tmpList = find_best_streak(i, 0, mat, streak, usedCols,start_row, tmp_struct);
+                    }
                 }   
                 if (tmpList.matchedPrediction.size() > bestList.matchedPrediction.size()) {
                     bestList = tmpList;
@@ -176,12 +182,25 @@ JCBB find_best_streak(int col, int row, MatrixXi mat, int streak, list<int> used
         return tmp_struct;
 }
 
+float gatingTest(JCBB potentialStreak, lines2Check foundLines, lines2Check predictedLines) {
+    float score = 0;
+    int test;
+    for (int i = 0; i < potentialStreak.matchedMeasurement.size(); i++) {
+        score += sqrt(pow(foundLines.meanRho[potentialStreak.matchedMeasurement[i]]-predictedLines.meanRho[potentialStreak.matchedPrediction[i]],2));
+        score += sqrt(pow(foundLines.meanTheta[potentialStreak.matchedMeasurement[i]]-predictedLines.meanTheta[potentialStreak.matchedPrediction[i]],2));
+    }
+
+    
+    return score; 
+}
+
 
 JCBB jointCompability(lines2Check foundLines, lines2Check predictedLines) {
     // Variables
     MatrixXi compabilityMatrix;
     JCBB bestMatch, bestList, tmpList;
     int debug;
+    float gateScore, gateScoreBest;
     
     // Finding possible compability between found lines and landmarks
     compabilityMatrix = measurementLineCompability(foundLines, predictedLines);
@@ -190,31 +209,27 @@ JCBB jointCompability(lines2Check foundLines, lines2Check predictedLines) {
     for (int j = 0; j < compabilityMatrix.rows(); j++) {
         for (int i = 0; i < compabilityMatrix.cols(); i++) {
             tmpList = find_best_streak(i, j, compabilityMatrix, 0, {},j, bestMatch);
-            //cout << "Kjører i loopen, I: " << i << ", J: " << j << endl;
             if (tmpList.matchedPrediction.size() > bestList.matchedPrediction.size()) {
-                bestList = tmpList;
+                gateScore = gatingTest(tmpList, foundLines, predictedLines);
+                if (gateScore < 1) {
+                    bestList = tmpList;
+                    gateScoreBest = gateScore;
+                }
+            }
+            if (tmpList.matchedPrediction.size() == bestList.matchedPrediction.size() && bestList.matchedPrediction.size() != 0) {
+                gateScore = gatingTest(tmpList, foundLines, predictedLines);
+                if (gateScore < gateScoreBest) {
+                   bestList = tmpList;
+                   gateScoreBest = gateScore; 
+                }
+                
             }
         }
     }
-    
-    
-    /*
-    cout << "Compability Matrix: " << endl << compabilityMatrix << endl;
-    cout << "Matched predictions and measurements: " << endl;
-    for (int i = 0; i < bestList.matchedPrediction.size(); i++) {
-        cout << i+1 << ". Measurement: " << bestList.matchedMeasurement[i] << " , Prediction: " << bestList.matchedPrediction[i] << endl;
-    }
-    cin >> debug;
-    */
-
-    // Returning matches
-    //list<int>::iterator it = bestList.begin();
-    //for (int i = 0; i < bestList.size(); i++) {
-    //    
-    //    bestMatch.matchedLine.push_back(i);
-    //    bestMatch.matchedMeasurement.push_back(*it); 
-    //    advance(it, 1);
+    //cout << "Returned JCBB " << bestList.matchedPrediction.size() << endl;
+    //for (int i = 0; i < bestList.matchedPrediction.size(); i++) {
+    //    cout << "Matched line: " << bestList.matchedMeasurement[i] << ", Matched prediction: " << bestList.matchedPrediction[i] << endl;
     //}
-    
+    //cout << "Actual JCBB" << endl;
     return bestList;
 }
