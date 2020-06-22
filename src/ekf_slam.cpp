@@ -1,6 +1,42 @@
 #include "ekf_slam.hpp"
 
 
+
+
+
+
+// Math FUnctions
+
+// Return line between two points
+
+
+void lineBetweenPoints2(int r0,int c0,int r1,int c1,vector<int>& x,vector<int>& y) {
+    
+    
+    if (abs(c1-c0) < abs(r1-r0)) {    
+        lineBetweenPoints2(c0,r0,c1,r1,x,y);
+        vector<int> tmp = y;
+        y = x;
+        x = tmp;
+    }
+    if (c0 > c1) {
+        return lineBetweenPoints2(r1,c1,r0,c0,x,y);
+
+    } 
+    x.resize(c1-c0);
+    y.resize(c1-c0);
+    float a, b;
+    a = (float)(r1-r0)/(float)(c1-c0);
+    b = ((float)(r0*c1 - r1*c0))/(float)(c1-c0);
+    iota(x.begin(),x.end(),c0);   
+    for (int i = 0; i < x.size(); i++) {
+        y[i] = x[i]*a + b;
+    }
+}
+
+
+
+
 // Turn euler to Quaternions
 
 theQuaternion ToQuaternion(double yaw, double pitch, double roll) // yaw (Z), pitch (Y), roll (X)
@@ -62,17 +98,21 @@ void ekfSLAM::initialization(VectorXf X0, MatrixXf P0, MatrixXf Q) {
 
     matrixMap.setZero();
     // Predefined 40min MAP
-    if (false) {
-        matrixMap = MatrixXf(6,6);
-        estimatedP = MatrixXf(9,9);
+    if (true) {
+        matrixMap = MatrixXf(10,10);
+        estimatedP = MatrixXf(13,13);
         estimatedP.setZero();
         matrixMap.setZero();
-        matrixMap(0,0) = 3.2;
-        matrixMap(1,1) = 1.72;
+        matrixMap(0,0) = 3.1;
+        matrixMap(1,1) = 1.65;
         matrixMap(2,2) = 3.49;
         matrixMap(3,3) = -1.4963;
         matrixMap(4,4) = 4.17247;
         matrixMap(5,5) = -2.7;
+        matrixMap(6,6) = 5.4337;
+        matrixMap(7,7) = 0.03;
+        matrixMap(8,8) = 2.87777;
+        matrixMap(9,9) = -0.722;
         estimatedP(3,3) = 0.3;
         estimatedP(4,4) = 0.3;
         estimatedP(3,0) = cos(1.67);
@@ -97,14 +137,31 @@ void ekfSLAM::initialization(VectorXf X0, MatrixXf P0, MatrixXf Q) {
         estimatedP(0,7) = cos(-2.7);
         estimatedP(1,7) = sin(-2.7);
         estimatedP(2,8) = -1;
+        estimatedP(9,9) = 0.3;
+        estimatedP(10,10) = 0.3;
+        estimatedP(9,0) = cos(0.03);
+        estimatedP(9,1) = sin(0.03);
+        estimatedP(10,2) = -1;
+        estimatedP(0,9) = cos(0.03);
+        estimatedP(1,9) = sin(0.03);
+        estimatedP(2,10) = -1;
+        estimatedP(11,11) = 0.3;
+        estimatedP(12,12) = 0.3;
+        estimatedP(11,0) = cos(-0.722);
+        estimatedP(11,1) = sin(-0.722);
+        estimatedP(12,2) = -1;
+        estimatedP(0,11) = cos(-0.722);
+        estimatedP(1,11) = sin(-0.722);
+        estimatedP(2,12) = -1;
     }
 
 
 
 
     scan = MatrixXf(1000,1000);
-    scan.setZero();
-    
+    scan.setConstant(255);
+    allData = MatrixXf(1000,1000);
+    allData.setZero();
     DEBUG = false;
     prev_ekf_yaw = 0;
     prev_ekf_x = 0;
@@ -763,7 +820,7 @@ void ekfSLAM::sonarS() {
             R(i,i) = 0.3;
         }
     }
-    matrixS = (matrixH*predictedP*matrixH.transpose() + R)*3; // 5 er for faktiske landmarks
+    matrixS = (matrixH*predictedP*matrixH.transpose() + R)*1000; // 5 er for faktiske landmarks
     if (matrixSDebug) {
     cout << "MatrixH: " << endl << matrixH << endl;
     cout << "MatrixP " << endl << predictedP << endl;    
@@ -934,7 +991,158 @@ Vector3f ekfSLAM::getStates() {
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Map functions
 
+void ekfSLAM::visualiseTheMap(votingBins data) {
+    int scale = 50;
+    float tmp_width, tmp_height;
+    float origo_height, origo_width, lineAngle;
+    int y;
+    float n;
+    int count = 0;
+    Mat gray_display,tmp_image;
+    
+   
+    
+    
+
+ 
+    // SCAN
+    for (int i = 0; i < data.ranges.size(); i++) {
+        tmp_width = predictedStatesX(1) + data.ranges[i]*sin(data.angles[i]+predictedStatesX(2));
+        tmp_height = predictedStatesX(0) + data.ranges[i]*cos(data.angles[i]+predictedStatesX(2));
+        tmp_width = (500) - (tmp_width*scale);
+        tmp_height = (500) - (tmp_height*scale);
+        allData((int)tmp_height,(int)tmp_width) = 255;      
+    }
+    
+
+    // LANDMARKS
+    
+
+
+    for (int i = 0; i < matrixMap.rows(); i+=2) {
+
+            //cout << "Landmark: " << i/2 << ", RHO: " << matrixMap(i,i) << ", Theta: " << matrixMap(i+1,i+1) << endl;
+            origo_width = (matrixMap(i,i)+0.1)*sin(matrixMap(i+1,i+1));
+            origo_height = (matrixMap(i,i)+0.1)*cos(matrixMap(i+1,i+1));
+            origo_width = (500) - (origo_width*scale);
+            origo_height = (500) - (origo_height*scale);
+            lineAngle = matrixMap(i+1,i+1)+(3.1415/2);
+    
+            
+            try {
+            n = origo_width - (tan(lineAngle) * origo_height);
+            
+
+
+            }
+
+            catch (...) {
+                return;
+            }
+            //for (int i = -3; i < 3; i++) {
+            //    for (int j = -3; j < 3; j++) {
+
+             //   scan(origo_height+i,origo_width+j) = 255;
+            //}
+        //}
+            
+     
+    vector<int> tmp_streakx;
+    vector<int> tmp_streaky;
+    bool continiue = false;
+    vector<int> best_streax;
+    vector<int> best_streaky;
+    vector<int> xx,yy;
+        for (int x = 0; x < 1000; x++) {
+            y = int(x * tan(lineAngle) + n);
+            if (y >= 0 && y < 1000) {
+                scan(x,y) = 255;
+            }
+     }
+     
+        
+     for (int x = 0; x < 1000; x++) {
+            y = int(x * tan(lineAngle) + n);
+            if (y >= 0 && y < 1000) {
+            for (int j = -3; j < 3; j++) {
+                for (int k = -3; k < 3; k++) {
+                    if (x+k > 0 && x+k < 1000 && y+j > 0 && y+j < 1000) {
+
+                        if (allData(x+k,y+j) == 255) {
+                             if (continiue == false) {
+                                continiue = true;
+                                
+                            }
+                            tmp_streakx.push_back(x+k);
+                           tmp_streaky.push_back(y+j);
+                            
+                        }
+                    } 
+                        
+                }
+            }
+            if (continiue == false && tmp_streakx.size()) {
+                if (tmp_streakx.size() > best_streax.size() ) {
+                    best_streax = tmp_streakx;
+                    best_streaky = tmp_streaky;
+                    tmp_streakx.clear();
+                    tmp_streaky.clear();
+                }
+            }
+            continiue = false;
+            } 
+           
+     }
+
+    for (int i = 0; i < best_streax.size(); i++) {
+        scan(best_streax[i],best_streaky[i]) = 0;
+        lineBetweenPoints2(best_streax[i],best_streaky[i],500-estimatedStatesX(0)*scale,500-estimatedStatesX(1)*scale,xx,yy);
+        for (int i = 0; i < xx.size(); i++) {
+            if (scan(yy[i],xx[i]) != 0 && scan(yy[i],xx[i]) != 100 && xx[i] < 1000 && xx[i] > 0 && yy[i] < 1000 && yy[i] > 0) {
+                scan(yy[i],xx[i]) = 100;
+            }
+
+        }
+
+    }
+
+
+
+    }
+    
+ 
+    
+
+    // CENTRUM
+    for (int i = -5; i < 5; i++) {
+            for (int j = -5; j < 5; j++) {
+                scan(500+i,500+j) = 100;
+            }
+        }
+
+  
+
+    // MANTA
+    for (int i = -5; i < 5; i++) {
+            for (int j = -5; j < 5; j++) {
+                scan(500-estimatedStatesX(0)*scale+i,500-estimatedStatesX(1)*scale+j) = 100;
+            }
+        }
+
+    eigen2cv(scan,tmp_image);
+    tmp_image.convertTo(gray_display, CV_8U);
+    namedWindow("Line display2", 0);
+    resizeWindow("Line display2", 2000, 2000);
+    imshow("Line display2", gray_display);
+    waitKey(1);
+    show_landmark = false;
+    //cout << "WHAT IS UP" << endl;
+
+}
+
+////////////
 
 // DEBUGGING /////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1115,7 +1323,7 @@ void ekfSLAM::visualiseMap(votingBins data) {
 }
 
 bool ekfSLAM::enoughLandmarks() {
-    if (matrixMap.rows() > 10) {
+    if (matrixMap.rows() > 14) {
         return false;
     }
     return true;

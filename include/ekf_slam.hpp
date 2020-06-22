@@ -68,6 +68,7 @@ class ekfSLAM {
         MatrixXf matrixQ, matrixI, statesEta, statesP, matrixMap, matrixG;
         VectorXf estimatedStatesX, predictedStatesX, measurementsZ, innovation, predictedLandmarks, matrixR;
         VectorXf possibleInnovation;
+        MatrixXf allData;
 
     public:
     ekfSLAM() {
@@ -118,4 +119,11 @@ class ekfSLAM {
 
     // Get states for publisher
     Vector3f getStates();
+
+    // Visualise the MAP :) 
+    void visualiseTheMap(votingBins data);
+
+
+
+
 };

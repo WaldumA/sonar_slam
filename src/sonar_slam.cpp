@@ -17,7 +17,6 @@ void sonarSlam::EKFCallback(const nav_msgs::Odometry::ConstPtr& msg) {
 
 }
 
-
 void sonarSlam::IMUCallback(const sensor_msgs::Imu::ConstPtr& msg) {
 	
 	float tmp_yaw, time_step, dt, test_time;
@@ -130,15 +129,15 @@ void sonarSlam::sonarCallback(const sonar_msgs::sonar_processed_data::ConstPtr& 
 	eS.sonarUpdate();
 	
 
-	if (eS.enoughLandmarks()) {
-	
-		eS.addLandmark();
-	}
+	//if (eS.enoughLandmarks()) {
+	//		eS.addLandmark();
+	//}
 	
 	
 	
 	//eS.visualiseMap(thresholded_data);
 	//eS.printStates(true	, false, false);
+	eS.visualiseTheMap(thresholded_data);
 	eS.resetVariables();
 	statesToPublish = eS.getStates();
 	

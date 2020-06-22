@@ -158,7 +158,7 @@ vector<normalDistribution> calculateNormalDistributions(vector<bestLine> bestLin
     MatrixXi scan;
     int scale = 50;
     int overlap_score;
-    int threshold = 280;
+    int threshold = 100;
     scan = MatrixXi(500,500);
     scan.setConstant(0);
     
